@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +11,13 @@ import (
 	"syscall"
 	"time"
 	"user-service/handlers"
+	"user-service/internal/auth"
 	"user-service/internal/stores/kafka"
 	"user-service/internal/stores/postgres"
 	"user-service/internal/users"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -119,6 +122,34 @@ func startApp() error {
 		}
 	}()
 
+	privateKeyPem, err := os.ReadFile("private.pem")
+	if err != nil {
+		slog.Error("Couldn't fetch privatekeypem", slog.Any("error", err))
+		panic(err)
+	}
+
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateKeyPem)
+	if err != nil {
+		slog.Error("Couldn't fetch privatekey", slog.Any("error", err))
+		panic(err)
+	}
+
+	publicKeyPem, err := os.ReadFile("pubkey.pem")
+	if err != nil {
+		slog.Error("Couldn't fetch publicKeyPem", slog.Any("error", err))
+		panic(err)
+	}
+	publicKey, err := jwt.ParseRSAPublicKeyFromPEM(publicKeyPem)
+	if err != nil {
+		slog.Error("Couldn't fetch publicKey", slog.Any("error", err))
+		panic(err)
+	}
+
+	authKeys, err := auth.NewKeys(privateKey, publicKey)
+	if err != nil {
+		return err
+	}
+
 	/*
 
 			//------------------------------------------------------//
@@ -136,7 +167,7 @@ func startApp() error {
 		WriteTimeout: 800 * time.Second,
 		IdleTimeout:  800 * time.Second,
 		//handlers.API returns gin.Engine which implements Handler Interface
-		Handler: handlers.API(u, kafkaConf),
+		Handler: handlers.API(u, kafkaConf, authKeys),
 	}
 	serverErrors := make(chan error)
 	go func() {

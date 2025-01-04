@@ -2,14 +2,18 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
+	"user-service/internal/auth"
 	"user-service/internal/stores/kafka"
 	"user-service/internal/users"
 	"user-service/pkg/ctxmanage"
 	"user-service/pkg/logkey"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // Signup handles the user signup process.
@@ -118,12 +122,19 @@ func (h *Handler) Signup(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+/*
+	when a user logs in, create a token for the user if login is a success
+	and return the token back to the client
+*/
+
 var credentials struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }
 
 func (h *Handler) UserLogin(c *gin.Context) {
+	traceId := ctxmanage.GetTraceIdOfRequest(c)
+
 	if err := c.ShouldBindJSON(&credentials); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
@@ -137,9 +148,28 @@ func (h *Handler) UserLogin(c *gin.Context) {
 		return
 	}
 
+	claims := auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    "user-service",
+			Subject:   fmt.Sprintf("%v", user.ID),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(50 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		Roles: user.Roles,
+	}
+
+	token, err := h.authKeys.GenerateToken(claims)
+	if err != nil {
+		slog.Error("Error generating token:",
+			slog.String(logkey.TraceID, traceId),
+			slog.String(logkey.ERROR, err.Error()),
+		)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "user": gin.H{
 		"id":    user.ID,
-		"name":  user.Name,
-		"email": user.Email,
+		"token": token,
 	}})
 }

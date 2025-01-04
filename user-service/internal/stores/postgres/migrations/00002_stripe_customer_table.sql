@@ -14,5 +14,5 @@ CREATE TABLE IF NOT EXISTS users_stripe (
 
 -- +goose Down
 -- +goose StatementBegin
-SELECT 'down SQL query';
+DROP TABLE IF EXISTS users_stripe;
 -- +goose StatementEnd

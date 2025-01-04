@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"time"
 )
 
 type Conf struct {
@@ -49,14 +50,14 @@ func (c *Conf) InsertUser(ctx context.Context, newUser NewUser) (User, error) {
 		// The `RETURNING` clause retrieves the inserted user's data after the operation.
 		query := `
         INSERT INTO users
-        (id, name, email, password_hash, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id, name, email, created_at, updated_at
+        (id, name, email, password_hash, created_at, updated_at, roles)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, name, email, created_at, updated_at, roles
         `
 		// Execute the `INSERT` query within the transaction to add the new user.
 		// `QueryRowContext` executes the query and scans the resulting row into the `user` struct.
-		err = tx.QueryRowContext(ctx, query, id, newUser.Name, newUser.Email, hashedPassword, createdAt, updatedAt).
-			Scan(&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt)
+		err = tx.QueryRowContext(ctx, query, id, newUser.Name, newUser.Email, hashedPassword, createdAt, updatedAt, newUser.Roles).
+			Scan(&user.ID, &user.Name, &user.Email, &user.CreatedAt, &user.UpdatedAt, &user.Roles)
 		if err != nil {
 			// Return an error if the query execution or scan fails.
 			return fmt.Errorf("failed to insert user: %w", err)
@@ -113,15 +114,14 @@ func (c *Conf) FetchUser(ctx context.Context, email string, password string) (Us
 	var user User
 
 	err := c.withTx(ctx, func(tx *sql.Tx) error {
-		// SQL query to fetch user details by email
 		query := `
-		SELECT id, name, email, password_hash, created_at, updated_at
+		SELECT id, name, email, password_hash, created_at, updated_at, roles
 		FROM users
 		WHERE email = $1
 		`
 
 		row := tx.QueryRow(query, email)
-		err := row.Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+		err := row.Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.Roles)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				return fmt.Errorf("user not found")
