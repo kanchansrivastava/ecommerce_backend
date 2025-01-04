@@ -1,4 +1,4 @@
-POSTGRES_HOST=user-postgres
+POSTGRES_HOST=user-postgres.diwakar
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
@@ -6,3 +6,10 @@ POSTGRES_DATABASE=postgres
 APP_PORT=80
 GIN_MODE=
 SERVICE_ENDPOINT_PREFIX=users
+
+
+KAFKA_HOST=kafka-user-service.diwakar
+KAFKA_PORT=9092
+
+
+STRIPE_TEST_KEY=

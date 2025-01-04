@@ -36,7 +36,9 @@ WORKDIR /app
 # Copy the compiled binary from the previous stage
 COPY --from=builder /app/user-service .
 
+# Copy the migrations folder into the container
 COPY --from=builder /app/internal/stores/postgres/migrations ./internal/stores/postgres/migrations
+
 
 # Copy the .env file into the container
 COPY .env .
