@@ -6,7 +6,6 @@ FROM golang:1.23.4-alpine3.21 AS builder
 WORKDIR /app
 
 
-
 # Set the target OS and architecture
 ENV GOOS=linux
 ENV GOARCH=amd64
@@ -23,6 +22,10 @@ RUN go mod tidy
 
 # Copy the source code into the container
 COPY . .
+
+# Download and cache dependencies
+#RUN go mod download
+
 
 
 # Build the Go application
@@ -42,6 +45,8 @@ COPY --from=builder /app/internal/stores/postgres/migrations ./internal/stores/p
 
 # Copy the .env file into the container
 COPY .env .
+COPY pubkey.pem .
+
 
 EXPOSE 80
 # Command to run the application

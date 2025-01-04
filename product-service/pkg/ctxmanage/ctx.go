@@ -1,10 +1,9 @@
 package ctxmanage
 
 import (
+	"github.com/gin-gonic/gin"
 	"log/slog"
 	"product-service/middleware"
-
-	"github.com/gin-gonic/gin"
 )
 
 func GetTraceIdOfRequest(c *gin.Context) string {

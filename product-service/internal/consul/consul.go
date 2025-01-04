@@ -18,7 +18,6 @@ func RegisterWithConsul() (*consulapi.Client, string, error) {
 	consulAddress := os.Getenv("CONSUL_HTTP_ADDRESS")         // Get the address of the Consul server
 	svcEndpointPrefix := os.Getenv("SERVICE_ENDPOINT_PREFIX") // Service endpoint prefix for KV store
 
-	fmt.Println(hostName, svcName, portString, consulAddress, svcEndpointPrefix, "**********")
 	// Step 1.1: Validate that all required environment variables are set
 	if hostName == "" || svcName == "" || portString == "" ||
 		consulAddress == "" || svcEndpointPrefix == "" {

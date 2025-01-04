@@ -4,31 +4,34 @@ import (
 	"time"
 )
 
+// Product represents the products table.
 type Product struct {
-	ID          string    `json:"id"` // UUID
-	Name        string    `db:"name" json:"name" binding:"required"`
-	Description string    `db:"description" json:"description"`
-	Price       string    `db:"price" json:"price" binding:"required"`
-	Category    string    `db:"category" json:"category"`
-	Stock       int       `db:"stock" json:"stock" binding:"required"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"` // Creation timestamp
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"` // Last updated timestamp
+	ID          string    `json:"id"`                    // Product ID
+	Name        string    `json:"name"`                  // Product name
+	Description string    `json:"description,omitempty"` // Product description (optional)
+	Price       string    `json:"price"`                 // Product price (non-negative)
+	Category    string    `json:"category,omitempty"`    // Product category (optional)
+	Stock       int       `json:"stock"`                 // Stock level (non-negative)
+	CreatedAt   time.Time `json:"-"`                     // Timestamp when created
+	UpdatedAt   time.Time `json:"-"`                     // Timestamp when last updated
+
 }
 
 type NewProduct struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description" binding:"omitempty"`
-	Price       string `json:"price" binding:"required"`
-	Category    string `json:"category" binding:"omitempty"`
-	Stock       int    `json:"stock" binding:"required,gte=0"`
+	Name        string `json:"name" validate:"required,max=255"`               // Name of the product (required, max 255 characters)
+	Description string `json:"description,omitempty" validate:"max=500"`       // Description (optional, max 500 characters)
+	Price       string `json:"price" validate:"required"`                      // Price (required, non-negative)
+	Category    string `json:"category,omitempty" validate:"required,max=100"` // Category (optional, max 100 characters)
+	Stock       int    `json:"stock" validate:"required,min=0"`                // Stock level (required, non-negative)
 }
 
-type StripeProductPricing struct {
-	ID              int       `json:"id"`                // Unique identifier
-	ProductID       string    `json:"product_id"`        // Foreign key referencing products table
+// ProductPricing represents the product_pricing table.
+type ProductPricing struct {
+	ID              int       `json:"id"`                // Unique ID for pricing
+	ProductID       string    `json:"product_id" `       // Foreign key for products
 	StripeProductID string    `json:"stripe_product_id"` // Stripe product ID
-	PriceID         string    `json:"price_id"`          // Stripe price ID
-	Price           uint64    `json:"price"`
-	CreatedAt       time.Time `json:"created_at"` // Timestamp when the record was created
-	UpdatedAt       time.Time `json:"updated_at"` // Timestamp when the record was last updated
+	PriceID         string    `json:"price_id" `         // Stripe price ID
+	Price           int64     `json:"price"`             // Price (must be non-negative)
+	CreatedAt       time.Time `json:"-"`                 // Timestamp when created
+	UpdatedAt       time.Time `json:"-"`                 // Timestamp when last updated
 }
