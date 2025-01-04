@@ -1,19 +1,16 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"github.com/gin-gonic/gin"
 	"log/slog"
 	"net/http"
-	"time"
-	"user-service/internal/auth"
 	"user-service/internal/stores/kafka"
 	"user-service/internal/users"
 	"user-service/pkg/ctxmanage"
 	"user-service/pkg/logkey"
-
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 // Signup handles the user signup process.
@@ -127,49 +124,73 @@ func (h *Handler) Signup(c *gin.Context) {
 	and return the token back to the client
 */
 
-var credentials struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
+func (h *Handler) Login(c *gin.Context) {
 
-func (h *Handler) UserLogin(c *gin.Context) {
+	// Get the trace ID from the request for debugging/tracking
 	traceId := ctxmanage.GetTraceIdOfRequest(c)
 
-	if err := c.ShouldBindJSON(&credentials); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
-		return
+	// Declare a struct to hold the login request payload
+	var loginPayload struct {
+		Email    string `json:"email" validate:"required,email"` // Email must be valid and required
+		Password string `json:"password" validate:"required"`    // Password required
 	}
 
-	ctx := c.Request.Context()
+	// Bind the JSON request body into loginPayload struct
+	err := c.ShouldBindJSON(&loginPayload)
 
-	user, err := h.u.FetchUser(ctx, credentials.Email, credentials.Password)
+	// Check if JSON bind resulted in errors
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+		// Log the JSON bind error
+		slog.Error("JSON validation error", slog.String(logkey.TraceID, traceId),
+			slog.String(logkey.ERROR, err.Error()))
+
+		// Respond with a Bad Request error
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	claims := auth.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "user-service",
-			Subject:   fmt.Sprintf("%v", user.ID),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(50 * time.Minute)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-		Roles: user.Roles,
-	}
+	// Validate the loginPayload fields
+	err = h.validate.Struct(loginPayload)
 
-	token, err := h.authKeys.GenerateToken(claims)
+	// Check if validation failed
 	if err != nil {
-		slog.Error("Error generating token:",
-			slog.String(logkey.TraceID, traceId),
-			slog.String(logkey.ERROR, err.Error()),
-		)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Error generating token"})
+
+		// Log generic validation failure
+		slog.Error("Validation failed", slog.String(logkey.TraceID, traceId),
+			slog.String(logkey.ERROR, err.Error()))
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid email or password"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Login successful", "user": gin.H{
-		"id":    user.ID,
-		"token": token,
-	}})
+	// Proceed to authenticate the user by verifying credentials
+	userData, claims, err := h.u.Authenticate(c.Request.Context(), loginPayload.Email, loginPayload.Password)
+
+	// Check if authentication failed
+	if err != nil {
+		slog.Error("Authentication failed", slog.String(logkey.TraceID, traceId), slog.String(logkey.ERROR, err.Error()))
+
+		// For incorrect credentials, send an unauthorized error
+		if errors.Is(err, sql.ErrNoRows) || errors.Is(err, users.ErrInvalidPassword) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		// If another error occurred, respond with an internal server error
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+		return
+	}
+
+	token, err := h.a.GenerateToken(claims)
+	if err != nil {
+		slog.Error("Error in generating token", slog.String(logkey.TraceID, traceId), slog.String(logkey.ERROR, err.Error()))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": http.StatusText(http.StatusInternalServerError)})
+		return
+	}
+
+	// If login is successful, return the user data in the response
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Login successful",
+		"user":    userData,
+		"token":   token,
+	})
 }

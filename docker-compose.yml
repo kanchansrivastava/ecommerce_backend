@@ -1,15 +1,36 @@
 
 services:
-#######################################
+  consul.dev:
+    container_name: consul-service
+    image: hashicorp/consul:1.20
+    ports:
+      - "8500:8500" # Consul UI
+    networks:
+      - web
+    restart: always
+  
+  # Gateway Service Containers
+  #########################################
+  gateway-service.dev:
+    build: ./gateway-service
+    container_name: gateway-service
+    ports:
+      - "80:80"
+    depends_on:
+      - consul.dev
+    networks:
+      - web
 
+#######################################
 # User-Service containers
 #######################################
 
   user-service.dev:
     build: ./user-service
     container_name: user-service
-    ports:
-      - "8083:80"
+    depends_on:
+      - consul.dev
+      - user-postgres.dev
     networks:
       - web
 
@@ -66,8 +87,9 @@ services:
   product-service.dev:
     build: ./product-service
     container_name: product-service
-    ports:
-      - "8084:80"
+    depends_on:
+      - consul.dev
+      - product-postgres.dev
     networks:
       - web
 

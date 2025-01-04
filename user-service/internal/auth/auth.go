@@ -6,6 +6,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+type ctxKey int
+
+const ClaimsKey ctxKey = 1
+
 type Keys struct {
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey

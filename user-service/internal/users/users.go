@@ -5,11 +5,15 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
-
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"os"
+	"time"
+	"user-service/internal/auth"
 )
+
+var ErrInvalidPassword = errors.New("invalid password")
 
 type Conf struct {
 	db *sql.DB
@@ -49,11 +53,11 @@ func (c *Conf) InsertUser(ctx context.Context, newUser NewUser) (User, error) {
 		// SQL query to insert a new user into the "users" table.
 		// The `RETURNING` clause retrieves the inserted user's data after the operation.
 		query := `
-        INSERT INTO users
-        (id, name, email, password_hash, created_at, updated_at, roles)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, name, email, created_at, updated_at, roles
-        `
+      INSERT INTO users
+      (id, name, email, password_hash, created_at, updated_at, roles)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, name, email, created_at, updated_at, roles
+      `
 		// Execute the `INSERT` query within the transaction to add the new user.
 		// `QueryRowContext` executes the query and scans the resulting row into the `user` struct.
 		err = tx.QueryRowContext(ctx, query, id, newUser.Name, newUser.Email, hashedPassword, createdAt, updatedAt, newUser.Roles).
@@ -74,6 +78,56 @@ func (c *Conf) InsertUser(ctx context.Context, newUser NewUser) (User, error) {
 
 	// Return the inserted user's data as a `User` struct.
 	return user, nil
+}
+
+func (c *Conf) Authenticate(ctx context.Context, email, password string) (User, auth.Claims, error) {
+	// Define a User struct to store the fetched data
+	var user User
+	f := func(tx *sql.Tx) error {
+		// SQL query to fetch the user details by email
+		query := `
+		SELECT id, name, email, password_hash, created_at, updated_at, roles
+		FROM users
+		WHERE email = $1
+	`
+
+		var passwordHash string
+
+		// Execute the query to fetch the user details
+		err := tx.QueryRowContext(ctx, query, email).
+			Scan(&user.ID, &user.Name, &user.Email, &passwordHash, &user.CreatedAt, &user.UpdatedAt, &user.Roles)
+
+		if err != nil {
+			return fmt.Errorf("failed to fetch user details: %w", err)
+		}
+
+		// Compare the stored hashed password with the provided password
+		err = bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
+		if err != nil {
+			return fmt.Errorf("incorrect password %w", ErrInvalidPassword)
+		}
+
+		// Return the authenticated user (password is excluded in the returned struct)
+		return nil
+	}
+	//executing the function withing transaction
+	err := c.withTx(ctx, f)
+	if err != nil {
+		return User{}, auth.Claims{}, fmt.Errorf("failed to authenticate user: %w", err)
+	}
+	var claims auth.Claims
+
+	// Successful authentication! Generate JWT claims.
+	claims.RegisteredClaims = jwt.RegisteredClaims{
+		Issuer:    os.Getenv("SERVICE_NAME"),
+		Subject:   user.ID,
+		Audience:  jwt.ClaimStrings{"everyone"},
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+	}
+	claims.Roles = user.Roles
+
+	return user, claims, nil
 }
 
 // withTx is a helper function that simplifies the usage of SQL transactions.
@@ -108,36 +162,4 @@ func (c *Conf) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
 
 	// Return nil if the function executes successfully and the transaction is committed.
 	return nil
-}
-
-func (c *Conf) FetchUser(ctx context.Context, email string, password string) (User, error) {
-	var user User
-
-	err := c.withTx(ctx, func(tx *sql.Tx) error {
-		query := `
-		SELECT id, name, email, password_hash, created_at, updated_at, roles
-		FROM users
-		WHERE email = $1
-		`
-
-		row := tx.QueryRow(query, email)
-		err := row.Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt, &user.Roles)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return fmt.Errorf("user not found")
-			}
-			return fmt.Errorf("failed to fetch user: %w", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return User{}, err
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
-	if err != nil {
-		return User{}, fmt.Errorf("password didnt match: %w", err)
-	}
-	return user, nil
 }

@@ -4,16 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"product-service/handlers"
+	"product-service/internal/consul"
 	"product-service/internal/products"
 	"product-service/internal/stores/postgres"
 	"syscall"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -35,6 +37,16 @@ func main() {
 		slog.Error("Failed to create products configuration", slog.Any("error", err))
 		panic(err)
 	}
+	consulClient, regId, err := consul.RegisterWithConsul()
+	if err != nil {
+		slog.Error("Failed to register with Consul", slog.Any("error", err))
+		panic(err)
+	}
+	defer func() {
+		if err := consulClient.Agent().ServiceDeregister(regId); err != nil {
+			slog.Error("Failed to deregister from Consul", slog.Any("error", err))
+		}
+	}()
 	setUpServer(p)
 }
 

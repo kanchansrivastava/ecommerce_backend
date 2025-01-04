@@ -18,7 +18,6 @@ type User struct {
 }
 
 // NewUser struct represents the data required when creating a new user
-// NewUser struct represents the data required when creating a new user
 type NewUser struct {
 	Name     string   `json:"name" validate:"required,min=2,max=100"` // User name must be between 2-100 chars
 	Email    string   `json:"email" validate:"required,email"`        // Valid email required
