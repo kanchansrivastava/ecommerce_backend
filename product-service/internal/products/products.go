@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/price"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/stripe/stripe-go/v81"
+	"github.com/stripe/stripe-go/v81/price"
 )
 
 type Conf struct {
@@ -73,6 +74,181 @@ func (c *Conf) InsertProduct(ctx context.Context, newProduct NewProduct) (Produc
 
 	// Return the inserted product
 	return product, nil
+}
+
+func (c *Conf) GetProductByID(ctx context.Context, productID string) (Product, error) {
+	var product Product
+
+	// Define the SQL query to fetch the product by ID
+	query := `
+		SELECT id, name, description, price, category, stock, created_at, updated_at
+		FROM products
+		WHERE id = $1
+	`
+
+	// Execute the query and scan the result into the product struct
+	err := c.withTx(ctx, func(tx *sql.Tx) error {
+		err := tx.QueryRowContext(ctx, query, productID).
+			Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.CreatedAt, &product.UpdatedAt)
+		if err != nil {
+			// Return error if no rows found or any other error
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("product not found: %w", err)
+			}
+			return fmt.Errorf("failed to fetch product: %w", err)
+		}
+		return nil
+	})
+
+	// Return the product if found or an error if not found
+	if err != nil {
+		return Product{}, err
+	}
+	return product, nil
+}
+
+func (c *Conf) UpdateProductInDB(ctx context.Context, productID string, updatedProduct Product) (Product, error) {
+	// Define the timestamps for updating the product
+	updatedAt := time.Now()
+
+	// SQL query to update the product details
+	query := `
+		UPDATE products
+		SET name = $1, description = $2, price = $3, category = $4, stock = $5, updated_at = $6
+		WHERE id = $7
+		RETURNING id, name, description, price, category, stock, created_at, updated_at
+	`
+
+	// Declare a variable to capture the updated product
+	var product Product
+
+	// Execute the update query within a transaction
+	err := c.withTx(ctx, func(tx *sql.Tx) error {
+		// Execute the query and scan the updated product into the product struct
+		err := tx.QueryRowContext(ctx, query, updatedProduct.Name, updatedProduct.Description, updatedProduct.Price,
+			updatedProduct.Category, updatedProduct.Stock, updatedAt, productID).
+			Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Category, &product.Stock, &product.CreatedAt, &product.UpdatedAt)
+
+		if err != nil {
+			// Return error if the update failed
+			return fmt.Errorf("failed to update product: %w", err)
+		}
+		return nil
+	})
+
+	// If error occurred while updating, return it
+	if err != nil {
+		return Product{}, err
+	}
+
+	// Return the updated product
+	return product, nil
+}
+
+func (c *Conf) DeleteProductFromDB(ctx context.Context, productID string) error {
+	// Define the SQL query to delete the product by ID
+	query := `
+		DELETE FROM products
+		WHERE id = $1
+	`
+
+	// Execute the deletion within a transaction
+	err := c.withTx(ctx, func(tx *sql.Tx) error {
+		// Execute the query to delete the product
+		result, err := tx.ExecContext(ctx, query, productID)
+		if err != nil {
+			return fmt.Errorf("failed to delete product: %w", err)
+		}
+
+		// Check if the product was actually deleted (i.e., if rows were affected)
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to check rows affected: %w", err)
+		}
+
+		if rowsAffected == 0 {
+			// If no rows were affected, it means the product does not exist
+			return fmt.Errorf("product with ID %s not found", productID)
+		}
+
+		// Return nil if the deletion was successful
+		return nil
+	})
+
+	// Return any error encountered during the deletion process
+	if err != nil {
+		return fmt.Errorf("failed to delete product: %w", err)
+	}
+
+	// Return nil if no errors occurred
+	return nil
+}
+
+func (c *Conf) ListProductsFromDB(ctx context.Context, name, category string, limit, offset int, sort, order string) ([]Product, error) {
+	// Validate the sort column and order direction
+	validSortColumns := map[string]bool{"name": true, "price": true, "category": true, "created_at": true}
+	if !validSortColumns[sort] {
+		sort = "name" // Default to sorting by name
+	}
+	if order != "asc" && order != "desc" {
+		order = "asc" // Default to ascending order
+	}
+
+	// Build the SQL query with filters, pagination, and sorting
+	query := `
+		SELECT id, name, description, price, category, stock, created_at, updated_at
+		FROM products
+		WHERE ($1 = '' OR name ILIKE '%' || $1 || '%')
+		  AND ($2 = '' OR category = $2)
+		ORDER BY ` + sort + ` ` + order + `
+		LIMIT $3 OFFSET $4
+	`
+
+	var products []Product
+
+	// Execute the query within a transaction
+	err := c.withTx(ctx, func(tx *sql.Tx) error {
+		// Execute the query
+		rows, err := tx.QueryContext(ctx, query, name, category, limit, offset)
+		if err != nil {
+			return fmt.Errorf("failed to query products: %w", err)
+		}
+		defer rows.Close()
+
+		// Iterate over the rows and scan the results
+		for rows.Next() {
+			var product Product
+			err := rows.Scan(
+				&product.ID,
+				&product.Name,
+				&product.Description,
+				&product.Price,
+				&product.Category,
+				&product.Stock,
+				&product.CreatedAt,
+				&product.UpdatedAt,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to scan product row: %w", err)
+			}
+			products = append(products, product)
+		}
+
+		// Check for errors encountered during iteration
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("row iteration error: %w", err)
+		}
+
+		return nil
+	})
+
+	// Return any error encountered during the transaction
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve products: %w", err)
+	}
+
+	// Return the list of products
+	return products, nil
 }
 
 // RupeesToPaisa converts a price from rupees (e.g., "99.99") to paise (e.g., 9999).
