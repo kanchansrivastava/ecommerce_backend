@@ -1,0 +1,2 @@
+internal package can't be used by projects outside the current repository
+it is not allowed to be imported by other projects

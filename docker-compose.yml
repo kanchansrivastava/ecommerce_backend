@@ -1,0 +1,43 @@
+services:
+  #########################################
+  # User-Service containers
+  #######################################
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    ports:
+      - "82:80"  # Ensure this port is not in conflict
+
+    networks:
+      - web
+    restart: always
+  #######################################
+
+  # Postgres-Service containers
+  #######################################
+  user-postgres:
+    image: postgres:16.3-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"  # Custom port to avoid conflict
+    networks:
+      - web
+  #######################################
+
+  # Adminer for database management
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "83:8080"  # Changed port to avoid conflict with user-service
+    networks:
+      - web
+
+# Containers connected to the same bridge network can communicate with each other
+networks:
+  web:
+    driver: bridge
