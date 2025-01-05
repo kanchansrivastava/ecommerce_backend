@@ -35,3 +35,15 @@ type ProductPricing struct {
 	CreatedAt       time.Time `json:"-"`                 // Timestamp when created
 	UpdatedAt       time.Time `json:"-"`                 // Timestamp when last updated
 }
+
+type ProductWithPricing struct {
+	ID            string    `json:"id"`                    // Product ID
+	Name          string    `json:"name"`                  // Product name
+	Description   string    `json:"description,omitempty"` // Product description (optional)
+	Price         string    `json:"price"`                 // Product price (non-negative)
+	Category      string    `json:"category,omitempty"`    // Product category (optional)
+	Stock         int       `json:"stock"`                 // Stock level (non-negative)
+	StripePriceID string    `json:"stripe_price_id"`       // Stripe Price ID for billing
+	CreatedAt     time.Time `json:"-"`                     // Timestamp when created
+	UpdatedAt     time.Time `json:"-"`                     // Timestamp when last updated
+}

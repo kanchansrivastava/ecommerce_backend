@@ -9,7 +9,7 @@ services:
       - web
     restart: always
   
-  # Gateway Service Containers
+  ## Gateway Service Containers
   #########################################
   gateway-service.dev:
     build: ./gateway-service
@@ -21,9 +21,9 @@ services:
     networks:
       - web
 
-#######################################
-# User-Service containers
-#######################################
+# #######################################
+# ## User-Service containers
+# #######################################
 
   user-service.dev:
     build: ./user-service
@@ -92,6 +92,8 @@ services:
     depends_on:
       - consul.dev
       - product-postgres.dev
+    # ports:
+    #   - "8086:80"
     networks:
       - web
 
@@ -112,6 +114,37 @@ services:
     networks:
       - web
 
+  
+  ##############################
+  # Cart-Service containers
+  ############################
+  cart-service.dev:
+    build: ./cart-service
+    container_name: cart-service
+    depends_on:
+      - consul.dev
+      - cart-postgres.dev
+    # ports:
+    #   - "8085:80"
+    networks:
+      - web
+
+  # Product Postgres containers
+  ##############################
+  cart-postgres.dev:
+    image: postgres:16.3-alpine
+    container_name: cart-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5435:5432"
+    volumes: 
+      - ./project-db/cart-postgres/postgres/:/var/lib/postgresql/data/
+    networks:
+      - web
 
 #Containers connected to the same bridge network can communicate with each other
 networks:

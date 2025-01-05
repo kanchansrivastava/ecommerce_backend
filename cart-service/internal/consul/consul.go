@@ -3,10 +3,9 @@ package consul
 import (
 	"errors"
 	"fmt"
+	consulapi "github.com/hashicorp/consul/api"
 	"os"
 	"strconv"
-
-	consulapi "github.com/hashicorp/consul/api"
 )
 
 func RegisterWithConsul() (*consulapi.Client, string, error) {
@@ -18,7 +17,7 @@ func RegisterWithConsul() (*consulapi.Client, string, error) {
 	portString := os.Getenv("APP_PORT")                       // Get the application port
 	consulAddress := os.Getenv("CONSUL_HTTP_ADDRESS")         // Get the address of the Consul server
 	svcEndpointPrefix := os.Getenv("SERVICE_ENDPOINT_PREFIX") // Service endpoint prefix for KV store
-	fmt.Println("all env found", hostName, svcName, portString, consulAddress, svcEndpointPrefix)
+
 	// Step 1.1: Validate that all required environment variables are set
 	if hostName == "" || svcName == "" || portString == "" ||
 		consulAddress == "" || svcEndpointPrefix == "" {

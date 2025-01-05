@@ -184,73 +184,6 @@ func (c *Conf) DeleteProductFromDB(ctx context.Context, productID string) error 
 	return nil
 }
 
-func (c *Conf) ListProductsFromDB(ctx context.Context, name, category string, limit, offset int, sort, order string) ([]Product, error) {
-	// Validate the sort column and order direction
-	validSortColumns := map[string]bool{"name": true, "price": true, "category": true, "created_at": true}
-	if !validSortColumns[sort] {
-		sort = "name" // Default to sorting by name
-	}
-	if order != "asc" && order != "desc" {
-		order = "asc" // Default to ascending order
-	}
-
-	// Build the SQL query with filters, pagination, and sorting
-	query := `
-		SELECT id, name, description, price, category, stock, created_at, updated_at
-		FROM products
-		WHERE ($1 = '' OR name ILIKE '%' || $1 || '%')
-		  AND ($2 = '' OR category = $2)
-		ORDER BY ` + sort + ` ` + order + `
-		LIMIT $3 OFFSET $4
-	`
-
-	var products []Product
-
-	// Execute the query within a transaction
-	err := c.withTx(ctx, func(tx *sql.Tx) error {
-		// Execute the query
-		rows, err := tx.QueryContext(ctx, query, name, category, limit, offset)
-		if err != nil {
-			return fmt.Errorf("failed to query products: %w", err)
-		}
-		defer rows.Close()
-
-		// Iterate over the rows and scan the results
-		for rows.Next() {
-			var product Product
-			err := rows.Scan(
-				&product.ID,
-				&product.Name,
-				&product.Description,
-				&product.Price,
-				&product.Category,
-				&product.Stock,
-				&product.CreatedAt,
-				&product.UpdatedAt,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to scan product row: %w", err)
-			}
-			products = append(products, product)
-		}
-
-		// Check for errors encountered during iteration
-		if err := rows.Err(); err != nil {
-			return fmt.Errorf("row iteration error: %w", err)
-		}
-
-		return nil
-	})
-
-	// Return any error encountered during the transaction
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve products: %w", err)
-	}
-
-	// Return the list of products
-	return products, nil
-}
-
 // RupeesToPaisa converts a price from rupees (e.g., "99.99") to paise (e.g., 9999).
 func RupeesToPaisa(price string) (uint64, error) {
 
@@ -516,4 +449,73 @@ func (c *Conf) DecrementStock(ctx context.Context, productID string, quantity in
 	// Successfully completed
 	return nil
 
+}
+
+func (c *Conf) ListProductsFromDB(ctx context.Context, name, category string, limit, offset int, sort, order string) ([]ProductWithPricing, error) {
+	// Validate the sort column and order direction
+	validSortColumns := map[string]bool{"name": true, "price": true, "category": true, "created_at": true}
+	if !validSortColumns[sort] {
+		sort = "name" // Default to sorting by name
+	}
+	if order != "asc" && order != "desc" {
+		order = "asc" // Default to ascending order
+	}
+
+	// Build the SQL query with filters, pagination, and sorting
+	query := `
+		SELECT p.id, p.name, p.description, p.price, p.category, p.stock, p.created_at, p.updated_at, pp.price_id
+		FROM products p
+		LEFT JOIN product_pricing_stripe pp ON p.id = pp.product_id
+		WHERE ($1 = '' OR p.name ILIKE '%' || $1 || '%')
+		  AND ($2 = '' OR p.category = $2)
+		ORDER BY ` + sort + ` ` + order + `
+		LIMIT $3 OFFSET $4
+	`
+
+	var products []ProductWithPricing
+
+	// Execute the query within a transaction
+	err := c.withTx(ctx, func(tx *sql.Tx) error {
+		// Execute the query
+		rows, err := tx.QueryContext(ctx, query, name, category, limit, offset)
+		if err != nil {
+			return fmt.Errorf("failed to query products: %w", err)
+		}
+		defer rows.Close()
+
+		// Iterate over the rows and scan the results
+		for rows.Next() {
+			var product ProductWithPricing
+			err := rows.Scan(
+				&product.ID,
+				&product.Name,
+				&product.Description,
+				&product.Price,
+				&product.Category,
+				&product.Stock,
+				&product.CreatedAt,
+				&product.UpdatedAt,
+				&product.StripePriceID,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to scan product row: %w", err)
+			}
+			products = append(products, product)
+		}
+
+		// Check for errors encountered during iteration
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("row iteration error: %w", err)
+		}
+
+		return nil
+	})
+
+	// Return any error encountered during the transaction
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve products: %w", err)
+	}
+
+	// Return the list of products
+	return products, nil
 }
