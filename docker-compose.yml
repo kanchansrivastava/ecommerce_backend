@@ -193,6 +193,18 @@ services:
     networks:
       - web
 
+  kafka-order-ui:
+      container_name: kafka-order-ui
+      image: provectuslabs/kafka-ui:latest
+      ports:
+        - "8086:8080"
+      depends_on:
+        - kafka-order-service.dev
+      environment:
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-order-service.dev:9092
+        DYNAMIC_CONFIG_ENABLED: 'true'
+      networks:
+        - web
 #Containers connected to the same bridge network can communicate with each other
 networks:
   web:

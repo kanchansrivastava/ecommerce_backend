@@ -90,6 +90,8 @@ func (h *Handler) Checkout(c *gin.Context) {
 	// Prepare Stripe line items
 	orderId := uuid.NewString()
 	lineItems := []*stripe.CheckoutSessionLineItemParams{}
+	var jsonLineItems []map[string]interface{}
+
 	for _, item := range detailedItems {
 		if item.Stock < item.Quantity || item.PriceID == "" {
 			slog.Error("invalid product details", slog.String("product_id", item.ProductID), slog.String(logkey.TraceID, traceId))
@@ -100,6 +102,17 @@ func (h *Handler) Checkout(c *gin.Context) {
 			Price:    stripe.String(item.PriceID),
 			Quantity: stripe.Int64(int64(item.Quantity)),
 		})
+		jsonLineItems = append(jsonLineItems, map[string]interface{}{
+			"price_id": item.PriceID,
+			"quantity": item.Quantity,
+		})
+	}
+
+	jsonOutput, err := json.Marshal(jsonLineItems)
+	if err != nil {
+		slog.Error("failed to marshal line items", slog.String("error", err.Error()))
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare line items"})
+		return
 	}
 
 	// Create Stripe checkout session
@@ -116,6 +129,7 @@ func (h *Handler) Checkout(c *gin.Context) {
 			Metadata: map[string]string{
 				"order_id": orderId,
 				"user_id":  claims.Subject,
+				"products": string(jsonOutput),
 			},
 		},
 	}
