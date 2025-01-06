@@ -1,0 +1,16 @@
+POSTGRES_HOST=order-postgres.diwakar
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DATABASE=postgres
+APP_PORT=80
+GIN_MODE=
+
+KAFKA_HOST=kafka-order-service.diwakar
+KAFKA_PORT=9092
+
+SERVICE_NAME=order-service.diwakar
+SERVICE_ENDPOINT_PREFIX=orders
+
+#Use the Consul service name
+CONSUL_HTTP_ADDRESS=http://consul.diwakar:8500
