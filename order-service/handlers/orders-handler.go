@@ -103,8 +103,8 @@ func (h *Handler) Checkout(c *gin.Context) {
 			Quantity: stripe.Int64(int64(item.Quantity)),
 		})
 		jsonLineItems = append(jsonLineItems, map[string]interface{}{
-			"price_id": item.PriceID,
-			"quantity": item.Quantity,
+			"product_id": item.ProductID,
+			"quantity":   item.Quantity,
 		})
 	}
 

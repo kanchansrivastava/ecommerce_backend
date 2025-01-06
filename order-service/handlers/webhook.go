@@ -63,9 +63,8 @@ func (h *Handler) Webhook(c *gin.Context) {
 		// Goroutine to handle each product
 		go func() {
 			for _, item := range products {
-				productID := item["price_id"].(string)      // Assuming the product ID is stored as "price_id" in the JSON
+				productID := item["product_id"].(string)    // Assuming the product ID is stored as "price_id" in the JSON
 				quantity := int(item["quantity"].(float64)) // Assuming quantity is stored as a number
-
 				// Create OrderPaidEvent for each product
 				jsonData, err := json.Marshal(kafka.OrderPaidEvent{
 					OrderId:   orderId,
