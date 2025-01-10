@@ -49,5 +49,7 @@ COPY pubkey.pem .
 
 
 EXPOSE 80
+# grpc
+EXPOSE 5001 
 # Command to run the application
 CMD ["./cart-service"]

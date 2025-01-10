@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	pb "order-service/gen/proto"
 	"order-service/internal/auth"
 	"order-service/internal/orders"
 	"order-service/internal/stores/kafka"
@@ -12,20 +13,23 @@ import (
 )
 
 type Handler struct {
-	client *consulapi.Client
-	o      *orders.Conf
-	k      *kafka.Conf
+	client      *consulapi.Client
+	o           *orders.Conf
+	k           *kafka.Conf
+	protoClient pb.CartItemServiceClient
 }
 
-func NewHandler(client *consulapi.Client, o *orders.Conf, k *kafka.Conf) *Handler {
+func NewHandler(client *consulapi.Client, o *orders.Conf, k *kafka.Conf, protoClient pb.CartItemServiceClient) *Handler {
 	return &Handler{
-		client: client,
-		o:      o,
-		k:      k,
+		client:      client,
+		o:           o,
+		k:           k,
+		protoClient: protoClient,
 	}
 }
 
-func API(endpointPrefix string, k *auth.Keys, client *consulapi.Client, o *orders.Conf, kafkaConf *kafka.Conf) *gin.Engine {
+func API(endpointPrefix string, k *auth.Keys, client *consulapi.Client, o *orders.Conf,
+	kafkaConf *kafka.Conf, protoClient pb.CartItemServiceClient) *gin.Engine {
 	r := gin.New()
 	mode := os.Getenv("GIN_MODE")
 	if mode == gin.ReleaseMode {
@@ -38,7 +42,7 @@ func API(endpointPrefix string, k *auth.Keys, client *consulapi.Client, o *order
 		panic(err)
 	}
 
-	h := NewHandler(client, o, kafkaConf)
+	h := NewHandler(client, o, kafkaConf, protoClient)
 	r.Use(middleware.Logger(), gin.Recovery())
 
 	r.GET("/ping", HealthCheck)
@@ -46,11 +50,16 @@ func API(endpointPrefix string, k *auth.Keys, client *consulapi.Client, o *order
 	{
 		v1.POST("/webhook", h.Webhook)
 		v1.Use(m.Authentication())
-		v1.POST("/checkout", h.Checkout)
+		// v1.POST("/checkout", h.Checkout)
 		v1.GET("/ping", HealthCheck)
 
 	}
 
+	v2 := r.Group(endpointPrefix)
+	{
+		v2.Use(m.Authentication())
+		v2.POST("/checkout", h.CheckoutV2)
+	}
 	return r
 }
 

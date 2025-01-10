@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
 	"log/slog"
 	"net/http"
 	"order-service/handlers"
@@ -17,6 +15,13 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	pb "order-service/gen/proto"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -93,6 +98,21 @@ func startApp() error {
 
 	fmt.Println("kafka conf", kafkaConf)
 	fmt.Println("connected to kafka")
+
+	/*** create GRPC client ***/
+	dialOpts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	}
+	conn, err := grpc.NewClient("cart-service.dev:5001", dialOpts...)
+
+	if err != nil {
+		return fmt.Errorf("grpc client")
+	}
+
+	defer conn.Close()
+	protoClient := pb.NewCartItemServiceClient(conn)
+	/*** end ***/
+
 	//------------------------------------------------------//
 
 	/*
@@ -130,7 +150,7 @@ func startApp() error {
 		WriteTimeout: 800 * time.Second,
 		IdleTimeout:  800 * time.Second,
 
-		Handler: handlers.API(prefix, a, consulClient, &o, kafkaConf),
+		Handler: handlers.API(prefix, a, consulClient, &o, kafkaConf, protoClient),
 	}
 	serverErrors := make(chan error)
 	go func() {
@@ -150,7 +170,6 @@ func startApp() error {
 	case err := <-serverErrors:
 		return err
 	case <-shutdown:
-
 		fmt.Println("graceful shutdown")
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -163,6 +182,7 @@ func startApp() error {
 				return fmt.Errorf("could not stop server gracefully %w", err)
 			}
 		}
+
 	}
 	return nil
 

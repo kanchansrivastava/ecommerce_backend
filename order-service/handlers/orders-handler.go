@@ -21,7 +21,7 @@ import (
 
 type CartItem struct {
 	ProductID string `json:"product_id"` // Unique identifier for the product
-	Quantity  int    `json:"quantity"`   // Quantity of the product in the cart
+	Quantity  int64  `json:"quantity"`   // Quantity of the product in the cart
 }
 
 type CartResponse struct {
@@ -243,7 +243,7 @@ func (h *Handler) fetchProductDetails(ctx context.Context, items []CartItem, aut
 
 		detailedItems = append(detailedItems, orders.DetailedCartItem{
 			ProductID: item.ProductID,
-			Quantity:  item.Quantity,
+			Quantity:  int(item.Quantity),
 			Price:     productResponse.Price,
 			Stock:     productResponse.Stock,
 			PriceID:   productResponse.PriceID,

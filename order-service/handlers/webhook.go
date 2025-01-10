@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
+	"net/smtp"
 	"order-service/internal/orders"
 	"order-service/internal/stores/kafka"
 	"order-service/pkg/logkey"
@@ -95,7 +98,7 @@ func (h *Handler) Webhook(c *gin.Context) {
 			slog.Error("Failed to update order", slog.Any("error", err.Error()))
 			return
 		}
-
+		sendOrderConfirmationEmail("kanchansrivastava1991@gmail.com", orderId)
 		// Respond with HTTP status OK
 		c.Status(http.StatusOK)
 
@@ -106,4 +109,30 @@ func (h *Handler) Webhook(c *gin.Context) {
 			"event":   event.Type,
 		})
 	}
+}
+
+func sendOrderConfirmationEmail(to string, orderId string) error {
+	smtpHost := "smtp.mailtrap.io" // Mailtrap SMTP server
+	smtpPort := "587"              // Mailtrap SMTP port
+	username := "f2763311c38489"   // Your Mailtrap username
+	password := "286a588d2e4f82"   // Your Mailtrap password
+
+	subject := "Order Confirmation"
+	body := fmt.Sprintf("Thank you for your order! Your order ID is %s. We are processing it now.", orderId)
+
+	from := "no-reply@example.com"
+	message := []byte("To: " + to + "\r\n" +
+		"Subject: " + subject + "\r\n" +
+		"\r\n" +
+		body + "\r\n")
+
+	auth := smtp.PlainAuth("", username, password, smtpHost)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, message)
+	if err != nil {
+		log.Printf("Failed to send email: %v", err)
+		return err
+	}
+
+	log.Printf("Email sent successfully to %s", to)
+	return nil
 }

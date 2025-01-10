@@ -5,7 +5,7 @@ type Cart struct {
 
 type CartItem struct {
 	ProductID string `json:"product_id"`
-	Quantity  int    `json:"quantity"`
+	Quantity  int64  `json:"quantity"`
 }
 
 type CartResponse struct {

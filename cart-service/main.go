@@ -4,8 +4,12 @@ import (
 	"cart-service/internal/auth"
 	"cart-service/internal/consul"
 	"context"
+	"net"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	"cart-service/handlers"
 	"fmt"
@@ -14,7 +18,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/joho/godotenv"
+	pb "cart-service/gen/proto"
 
 	"cart-service/internal/cart"
 	"cart-service/internal/stores/postgres"
@@ -106,6 +110,34 @@ func startApp() error {
 		serverErrors <- api.ListenAndServe()
 	}()
 
+	/***** startup GRPC server ****/
+	grpcErrors := make(chan error)
+
+	go func() {
+		listener, err := net.Listen("tcp", ":5001")
+
+		//send error to channel
+
+		if err != nil {
+			grpcErrors <- err // Send error to the channel
+			return
+		}
+
+		//NewServer creates a gRPC server which has no service registered
+		// creating an instance of the server
+		s := grpc.NewServer()
+
+		pb.RegisterCartItemServiceServer(s, handlers.NewCartItemServiceHandler(cConf))
+
+		//exposing gRPC service to be tested by postman
+		reflection.Register(s)
+
+		// Start serving requests
+		if err := s.Serve(listener); err != nil {
+			grpcErrors <- err // Send error to the channel
+		}
+	}()
+
 	/*****  Listening for error signals  ******/
 
 	//shutdown channel intercepts ctrl+c signals
@@ -128,6 +160,8 @@ func startApp() error {
 				return fmt.Errorf("could not stop server gracefully %w", err)
 			}
 		}
+	case err := <-grpcErrors: // handling error
+		return fmt.Errorf("GRPC error %w", err)
 	}
 	return nil
 

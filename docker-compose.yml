@@ -69,23 +69,10 @@ services:
       KAFKA_NUM_PARTITIONS: 1
     networks:
       - web
-
-  kafka-ui:
-    container_name: kafka-ui
-    image: provectuslabs/kafka-ui:latest
-    ports:
-      - "8085:8080"
-    depends_on:
-      - kafka-user-service.dev
-    environment:
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-user-service.dev:9092
-      DYNAMIC_CONFIG_ENABLED: 'true'
-    networks:
-      - web
     
-  ###############################
-  # Product-Service containers
-  #############################
+  # ###############################
+  # # Product-Service containers
+  # #############################
   product-service.dev:
     build: ./product-service
     container_name: product-service
@@ -97,8 +84,6 @@ services:
     networks:
       - web
 
-  # Product Postgres containers
-  ###############################
   product-postgres.dev:
     image: postgres:16.3-alpine
     container_name: product-postgres
@@ -114,7 +99,6 @@ services:
     networks:
       - web
 
-  
   ##############################
   # Cart-Service containers
   ############################
@@ -193,18 +177,22 @@ services:
     networks:
       - web
 
-  kafka-order-ui:
-      container_name: kafka-order-ui
-      image: provectuslabs/kafka-ui:latest
-      ports:
-        - "8086:8080"
-      depends_on:
-        - kafka-order-service.dev
-      environment:
-        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-order-service.dev:9092
-        DYNAMIC_CONFIG_ENABLED: 'true'
-      networks:
-        - web
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka-user-service.dev
+      - kafka-order-service.dev
+    environment:
+      KAFKA_CLUSTERS_0_NAME: user-service-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-user-service.dev:9092
+      KAFKA_CLUSTERS_1_NAME: order-service-cluster
+      KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: kafka-order-service.dev:9092
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - web
 #Containers connected to the same bridge network can communicate with each other
 networks:
   web:
